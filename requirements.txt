@@ -1,0 +1,6 @@
+dash==2.*
+dash-bootstrap-components==1.*
+dash-ag-grid==31.*      # optional, for richer tables later
+plotly==5.*
+pandas>=2.0
+openpyxl
