@@ -1,0 +1,25 @@
+# Git / VCS
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Caches / artifacts
+dist/
+build/
+*.egg-info/
+
+# Streamlit (if present in the repo)
+.streamlit/
