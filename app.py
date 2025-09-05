@@ -408,7 +408,7 @@ app.layout = dbc.Container(
     style={"maxWidth": "100%", "padding": 0}  # belt & suspenders
 )
 
-def tiny_profit_pill(value_pct: float, *, target_pct: float = 30.0, width_px: int = 140, height_px: int = 8):
+def tiny_profit_pill(value_pct: float, *, target_pct: float = 30.0, width_px: int = 200, height_px: int = 8):
     """A compact CSS-only gradient pill with a needle and target line."""
     # clamp to 0–100 for layout; if you use dynamic ranges, keep it 0–100 visually
     value_pct = max(0.0, min(100.0, float(value_pct or 0.0)))
@@ -601,40 +601,33 @@ def compute(cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_price_lf, sf_caps
 
     # ---- Profit badge (compact)
     badge = html.Span(
-        f"PROFIT {'GOOD' if profit_margin>=0.30 else 'CHECK PROFIT'}  {profit_margin*100:.1f}%",
+        f" {'GOOD' if profit_margin>=0.30 else 'CHECK PROFIT'}  {profit_margin*100:.1f}%",
         className="status-badge",
         style={"fontSize": "11px", "padding": "6px 10px"}  # smaller badge
     )
 
-    # ---- Tiny pill (fixed 140×6 px)
+    # ---- Tiny pill (e.g., 160×8 px)
     gauge_val = (profit_margin * 100.0) if subtotal_for_margin > 0 else 0.0
-    pill = tiny_profit_pill(gauge_val, target_pct=30.0, width_px=140, height_px=6)
-
-    # ---- Customer table lines
+    target_pct = 30.0
+    pill = tiny_profit_pill(gauge_val, target_pct=target_pct, width_px=160, height_px=8)
+    
+        # ---- Customer table lines
     customer_qty = int(total_lf or 0)
     lines = []
-    if customer_qty > 0:
-        item_name = (
-            "14 Gauge Silt Fence" if (cat=="Silt Fence" and (sf_gauge or "").startswith("14"))
-            else ("12.5 Gauge Silt Fence" if cat=="Silt Fence" else "Plastic Orange Fence")
-        )
-        lines.append({
-            "_id": str(uuid.uuid4()), "Qty": customer_qty, "Item": item_name, "Unit": "LF",
-            "Price Each": float(final_price_per_lf), "Line Total": float(final_price_per_lf) * customer_qty
-        })
-    if caps_qty > 0:
-        lines.append({
-            "_id": str(uuid.uuid4()), "Qty": int(caps_qty), "Item": "Safety Caps", "Unit": "EA",
-            "Price Each": float(caps_unit_cost), "Line Total": float(caps_unit_cost) * int(caps_qty)
-        })
-    if removal_selected and req_ft > 0:
-        lines.append({
-            "_id": str(uuid.uuid4()), "Qty": customer_qty, "Item": "Fence Removal", "Unit": "LF",
-            "Price Each": float(removal_unit_lf), "Line Total": float(removal_unit_lf) * customer_qty
-        })
+    if customer_qty>0:
+        item_name = ("14 Gauge Silt Fence" if (cat=="Silt Fence" and (sf_gauge or "").startswith("14"))
+                     else ("12.5 Gauge Silt Fence" if cat=="Silt Fence" else "Plastic Orange Fence"))
+        lines.append({"_id":str(uuid.uuid4()), "Qty":customer_qty, "Item":item_name, "Unit":"LF",
+                      "Price Each":float(final_price_per_lf), "Line Total":float(final_price_per_lf)*customer_qty})
+    if caps_qty>0:
+        lines.append({"_id":str(uuid.uuid4()), "Qty":int(caps_qty), "Item":"Safety Caps", "Unit":"EA",
+                      "Price Each":float(caps_unit_cost), "Line Total":float(caps_unit_cost)*int(caps_qty)})
+    if removal_selected and req_ft>0:
+        lines.append({"_id":str(uuid.uuid4()), "Qty":customer_qty, "Item":"Fence Removal", "Unit":"LF",
+                      "Price Each":float(removal_unit_lf), "Line Total":float(removal_unit_lf)*customer_qty})
 
     subtotal = sum(l["Line Total"] for l in lines)
-    sales_tax = 0.0 if remove_tax_flag else subtotal * SALES_TAX
+    sales_tax = 0.0 if remove_tax_flag else subtotal*SALES_TAX
     grand_total = subtotal + sales_tax
     totals_html = html.Div([
         html.Div(f"Subtotal: ${subtotal:,.2f}"),
@@ -642,7 +635,6 @@ def compute(cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_price_lf, sf_caps
         html.Div(html.Strong(f"Grand Total: ${grand_total:,.2f}")),
     ])
 
-    # NOTE: keep the output order EXACTLY as your @app.callback Outputs
     return cs, tc, mc, badge, pill, lines, totals_html
 
 # -- Toggle the Offcanvas with the hamburger tab
