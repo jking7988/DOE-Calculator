@@ -1,29 +1,16 @@
+# docker-compose.dev.yml
 version: "3.9"
 services:
   app:
-    # Mount your source so edits are seen inside the container
+    # override the prod command: use Dash/Flask reloader
+    command: python app.py
+    # mount your source into the container so changes are visible live
     volumes:
-      - .:/app
-
-      # Mount the pricebook as a file under /data (read-only) to avoid
-      # being hidden by the /app bind mount above.
-      - type: bind
-        source: "Z:\\Double Oak Erosion\\BIDS\\DOE BID Template w Calcs.xlsx"
-        target: /data/pricebook.xlsx
-        read_only: true
-        # If Z: won't share, use UNC:
-        # source: "//server3/doubleoak/Double Oak Erosion/BIDS/DOE BID Template w Calcs.xlsx"
-
+      - ./:/app
+      - "${HOST_PRICEBOOK_DIR}:/data:ro"
     environment:
-      APP_VERSION: "dev"
-      PRICEBOOK_PATH: "/data/pricebook.xlsx"
-
-    # Auto-reload on code changes (pick ONE of these commands)
-
-    # Option A: Gunicorn with reload (prod-like, recommended)
-    command: >
-      gunicorn --reload --bind 0.0.0.0:8050 app:server
-
-    # Option B: Dash dev server (simple)
-    # command: >
-    #   python app.py
+      # your pricebook inside the container
+      PRICEBOOK_PATH: "/data/DOE BID Template w Calcs.xlsx"
+      FLASK_ENV: development
+      DASH_DEBUG: "1"      # not strictly required since app.py sets debug=True, but harmless
+    restart: "no"

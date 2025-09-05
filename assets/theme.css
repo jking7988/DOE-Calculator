@@ -1,0 +1,139 @@
+/* ===== LIGHT MODE (default) ===== */
+
+/* Sidebar surface (no vertical edge bar) */
+.offcanvas.theme-surface {
+  background: #4bb254 !important;
+  border-right: 3px solid #020603 !important;
+}
+
+/* Sidebar header = green bar, centered title, no extra borders */
+.offcanvas.theme-surface .offcanvas-header {
+  background: #2E7D32 !important;  /* green bar */
+  color: #ffffff !important;
+  border:0 !important;             /* remove black borders */
+  display: flex;
+  justify-content: center;          /* center title horizontally */
+  align-items: center;              /* vertically center within header */
+  padding: 0.75rem 1rem;
+}
+.offcanvas.theme-surface .offcanvas-title {
+  color: #ffffff !important;        /* white title text */
+  font-weight: 800;
+}
+
+/* Sidebar text alignment (center EVERYTHING in the body) */
+.offcanvas.theme-surface .offcanvas-body { 
+  text-align: center;               /* <--- change to 'left' if you prefer */
+}
+
+/* Inputs: match alignment */
+.offcanvas.theme-surface .offcanvas-body input[type="text"],
+.offcanvas.theme-surface .offcanvas-body input[type="number"] {
+  text-align: inherit !important;   /* follow the container alignment */
+}
+
+/* Dropdown placeholder/value (dcc.Dropdown / react-select) */
+.offcanvas.theme-surface .offcanvas-body .Select-placeholder,
+.offcanvas.theme-surface .offcanvas-body .Select--single > .Select-control .Select-value,
+.offcanvas.theme-surface .offcanvas-body .Select-value-label {
+  text-align: inherit !important;
+  width: 100%;
+}
+
+/* Labels (green + bold) */
+.offcanvas.theme-surface .offcanvas-body .form-label,
+.offcanvas.theme-surface .offcanvas-body .form-check-label,
+.offcanvas.theme-surface .offcanvas-body label {
+  color: #2E7D32 !important;
+  font-weight: 800;
+}
+
+/* Cards */
+.do-card {
+  border: 2px solid #2E7D32;        /* fixed: had 'px' with no number */
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+.do-title {
+  font-weight: 800;
+  color: #0f172a;
+  border-bottom: 2px dashed #CFE9D3;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+/* Buttons */
+.btn-success { background-color: #2E7D32; border-color: #2E7D32; }
+.btn-success:hover { filter: brightness(0.95); }
+
+/* ===== DARK MODE OVERRIDES (scoped to #theme_root.theme-dark) ===== */
+
+#theme_root.theme-dark { 
+  background-color: #1f9461 !important; 
+  color: #E6F4EA !important; 
+  min-height: 100vh;
+}
+
+/* Cards & titles */
+#theme_root.theme-dark .do-card {
+  background-color: #132118 !important;
+  border-color: #22C55E !important;
+}
+#theme_root.theme-dark .do-title {
+  color: #E6F4EA !important;
+  border-bottom-color: #1B2A22 !important;
+}
+
+/* Sidebar surface + header bar */
+#theme_root.theme-dark .offcanvas.theme-surface {
+  background-color: #132118 !important;
+  border-right: 3px !important;        /* keep edge clean in dark too */
+}
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-header {
+  background-color: #14532D !important;   /* deep green bar */
+  color: #E6F4EA !important;
+  border: 0 !important;
+}
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-title {
+  color: #E6F4EA !important;
+}
+
+/* Sidebar labels */
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body .form-label,
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body .form-check-label,
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body label {
+  color: #ff009d !important;              /* bright green labels */
+}
+
+/* DataTable dark */
+#theme_root.theme-dark .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner {
+  background-color: #132118 !important;
+}
+#theme_root.theme-dark .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+  background: #14532D !important; 
+  color: #E6F4EA !important;
+}
+#theme_root.theme-dark .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+  color: #E6F4EA !important; 
+  background-color: #132118 !important;
+}
+#theme_root.theme-dark .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:nth-child(odd) td {
+  background-color: #0F1B14 !important;
+}
+
+/* Brand button in dark */
+#theme_root.theme-dark .btn-success { 
+  background-color: #22C55E !important; 
+  border-color: #22C55E !important; 
+}
+
+/* Light mode: 3px solid green */
+#theme_root .offcanvas.theme-surface {
+  border-right: 3px solid #2E7D32 !important;
+}
+
+/* Dark mode: 4px solid bright green (example) */
+#theme_root.theme-dark .offcanvas.theme-surface {
+  border-right: 4px solid #22C55E !important;
+}
