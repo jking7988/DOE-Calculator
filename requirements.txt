@@ -4,3 +4,4 @@ dash-ag-grid==31.*      # optional, for richer tables later
 plotly==5.*
 pandas>=2.0
 openpyxl
+reportlab
