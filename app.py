@@ -1,6 +1,5 @@
 # app.py
 import math, uuid
-from io import BytesIO
 from datetime import datetime
 
 import dash
@@ -19,9 +18,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 
 from core import pricebook
 
-# ---- Version label (kept in code so bump2version can edit it) ----
-APP_VERSION = "0.2.0"  # <-- bump2version updates this automatically
-
+# ---- Version label (UI + PDF) ----
+# bump2version updates APP_VERSION automatically; we also read VERSION as source of truth.
+APP_VERSION = "0.2.0"
 def _read_version_fallback():
     try:
         with open("VERSION", "r", encoding="utf-8") as f:
@@ -71,7 +70,6 @@ def materials_breakdown(required_ft: float, cost_per_lf: float, posts_count: int
 # ---- Theme (Bootstrap + tiny CSS) ----
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-# ... later, after app = dash.Dash(...)
 app.title = f"Double Oak Fencing Estimator (Dash) – v{_read_version_fallback()}"
 
 app.index_string = """
@@ -211,6 +209,7 @@ materials_section = dbc.Row([
     ], md=12)
 ])
 
+# ---- Layout ----
 app.layout = dbc.Container([
     dcc.Store(id="lines_store", data=[]),
     sidebar,
@@ -222,6 +221,19 @@ app.layout = dbc.Container([
     html.Hr(),
     table_section,
     html.Br(), materials_section,
+
+    # Sticky footer version badge
+html.Footer(
+    dbc.Badge(f"Double Oak Estimator – v{_read_version_fallback()}",
+              color="secondary", pill=True, class_name="shadow-sm"),
+    style={
+        "position": "fixed",
+        "bottom": "10px",
+        "right": "12px",
+        "zIndex": 9999,
+        "background": "transparent"
+    }
+)
 ], fluid=True)
 
 # ---- Callbacks ----
@@ -346,7 +358,7 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
     customer_total = customer_subtotal_display + customer_sales_tax
 
     internal_total_cost = mat_sub_all + tax_all + labor_cost + fuel
-    subtotal_for_margin = sell_total_main + caps_revenue
+    subtotal_for_margin = sell_total_main + caps_revenue  # keep margin on main scope/caps
     gross_profit = subtotal_for_margin - internal_total_cost
     profit_margin = (gross_profit/subtotal_for_margin) if subtotal_for_margin>0 else 0.0
 
@@ -531,8 +543,11 @@ def _build_quote_pdf(buf, proj, company, address, lines, mats, tax_rate):
     else:
         story.append(Paragraph("No materials.", subtle))
 
-    story.append(Spacer(1, 16))
-    story.append(Paragraph("Thank you for the opportunity. Please reply to this email with any changes.", subtle))
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(
+        f"Generated with Double Oak Fencing Estimator v{_read_version_fallback()}",
+        ParagraphStyle('footer', fontSize=8, textColor=colors.grey, alignment=2)  # right aligned
+    ))
 
     doc.build(story)
 
@@ -570,6 +585,8 @@ def mailto_href(lines, mats, project_name, company_name, project_address):
     def mrow(r): return f"{r.get('Qty','')} {r.get('Unit','')} – {r.get('Item','')} ({r.get('Notes','')})"
     body += "Materials Takeoff:%0D%0A" + "%0D%0A".join(mrow(r) for r in mats)
     return f"mailto:?subject={_url.quote(sub)}&body={body}"
+
+server = app.server  # expose Flask server for gunicorn/Render
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8050, debug=True)

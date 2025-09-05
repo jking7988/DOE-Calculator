@@ -1,14 +1,20 @@
-# Don’t send Git history to Docker
-.git
-.gitignore
+# Dockerfile
+FROM python:3.11-slim
 
-# Python cache & venv
-__pycache__/
-*.pyc
-.venv/
-.env
+# System deps (fonts for ReportLab PDFs)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 
-# Editor junk
-.DS_Store
-.vscode/
-.idea/
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Expose the port the app runs on
+EXPOSE 8050
+
+# Dash/Flask will be served by gunicorn
+# IMPORTANT: use app:server (not app:app), since gunicorn needs the WSGI Flask server
+CMD ["gunicorn", "--bind", "0.0.0.0:8050", "app:server"]

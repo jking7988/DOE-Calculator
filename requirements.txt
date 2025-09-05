@@ -5,3 +5,4 @@ plotly==5.*
 pandas>=2.0
 openpyxl
 reportlab
+gunicorn
