@@ -19,11 +19,15 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 
 from core import pricebook
 
-APP_VERSION = "v0.2.0"
-app.title = f"Double Oak Fencing Estimator (Dash) – {APP_VERSION}"
+# ---- Version label (kept in code so bump2version can edit it) ----
+APP_VERSION = "0.2.0"  # <-- bump2version updates this automatically
 
-with open("VERSION") as f:
-    APP_VERSION = f.read().strip()
+def _read_version_fallback():
+    try:
+        with open("VERSION", "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return APP_VERSION
 
 # ---- Load pricebook at startup (root Excel or env path) ----
 pricebook.ensure_loaded()
@@ -67,7 +71,8 @@ def materials_breakdown(required_ft: float, cost_per_lf: float, posts_count: int
 # ---- Theme (Bootstrap + tiny CSS) ----
 external_stylesheets = [dbc.themes.BOOTSTRAP]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app.title = "Double Oak Fencing Estimator (Dash)"
+# ... later, after app = dash.Dash(...)
+app.title = f"Double Oak Fencing Estimator (Dash) – v{_read_version_fallback()}"
 
 app.index_string = """
 <!DOCTYPE html>
