@@ -1,32 +1,81 @@
 # app.py
 import math, uuid
 from datetime import datetime
+import os
 
 import dash
-from dash import html, dcc, Input, Output, State, dash_table, callback_context
+from dash import html, dcc, Input, Output, State, dash_table, no_update, callback_context
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
-from dash.dcc import send_data_frame, send_bytes
-import urllib.parse as _url
 
-# PDF (ReportLab)
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+# ---- Configs ----
+SIDEBAR_W = 360  # keep in sync with Offcanvas width (px)
 
-from core import pricebook
+# --- Pricebook loader: prefer core.pricebook if present, else fallback ---
+try:
+    # If you later add core/pricebook.py, this import will be used.
+    from core import pricebook as pricebook  # type: ignore
+except Exception:
+    class _Pricebook:
+        def __init__(self):
+            self._path = os.environ.get("PRICEBOOK_PATH")
+            self._loaded = False
+            self._sheets = {}
 
-# ---- Version label (UI + PDF) ----
-# bump2version updates APP_VERSION automatically; we also read VERSION as source of truth.
-APP_VERSION = "0.2.0"
-def _read_version_fallback():
+        def ensure_loaded(self):
+            if self._loaded:
+                return
+            self._sheets = {}
+            p = self._path
+            if p and os.path.exists(p):
+                try:
+                    self._sheets = pd.read_excel(p, sheet_name=None, engine="openpyxl")
+                except Exception:
+                    self._sheets = {}
+            self._loaded = True
+
+        def get_source(self):
+            return self._path or "(defaults)"
+
+        def get_price(self, sku, default):
+            """Scan sheets for a row matching `sku` and return a price-like column; fallback to `default`."""
+            self.ensure_loaded()
+            key = str(sku or "").strip().lower()
+            for _, df in (self._sheets or {}).items():
+                try:
+                    df2 = df.copy()
+                    df2.columns = [str(c).strip().lower() for c in df2.columns]
+                    price_cols = [c for c in df2.columns if c in (
+                        "price","unit price","cost","rate","per lf","$/lf","$ / lf","$ per lf")]
+                    key_cols = [c for c in df2.columns if c in (
+                        "sku","key","code","item","name","description")]
+                    for kc in key_cols:
+                        series = df2[kc].astype(str).str.strip().str.lower()
+                        mask = series == key
+                        if mask.any() and price_cols:
+                            val = df2.loc[mask, price_cols[0]].iloc[0]
+                            return float(val)
+                except Exception:
+                    continue
+            return default
+
+    pricebook = _Pricebook()
+# --- end pricebook fallback ---
+
+# --- Version helper (safe during import) ---
+def _read_version_fallback() -> str:
+    """
+    Prefer APP_VERSION env; fall back to VERSION file; default '0.0.0'.
+    """
+    v = os.environ.get("APP_VERSION")
+    if v:
+        return v.strip()
     try:
         with open("VERSION", "r", encoding="utf-8") as f:
-            return f.read().strip()
+            return f.read().strip() or "0.0.0"
     except Exception:
-        return APP_VERSION
+        return "0.0.0"
 
 # ---- Load pricebook at startup (root Excel or env path) ----
 pricebook.ensure_loaded()
@@ -101,7 +150,8 @@ sidebar = dbc.Offcanvas(
     is_open=True,
     placement="start",
     scrollable=True,
-    style={"width":"360px","background":"#eaf6ec","borderRight":"3px solid #2e6d33"},
+    # backdrop="static",  # <- uncomment to prevent closing on backdrop click
+    style={"width": f"{SIDEBAR_W}px", "background":"#eaf6ec","borderRight":"3px solid #2e6d33"},
     children=[
         dbc.Label("Project Title"), dcc.Input(id="project_name", type="text", placeholder="Lakeside Retail – Phase 2", style={"width":"100%"}),
         dbc.Label("Customer Name"), dcc.Input(id="company_name", type="text", placeholder="ACME Builders", style={"width":"100%"}),
@@ -151,12 +201,23 @@ sidebar = dbc.Offcanvas(
 
 # ---- Main content layout ----
 cards = dbc.Row([
-    dbc.Col(dbc.Card(dbc.CardBody([html.H4("Cost Summary", className="do-title"), html.Div(id="cost_summary")] ), className="do-card"), md=4),
-    dbc.Col(dbc.Card(dbc.CardBody([html.H4("Total Costs Breakdown", className="do-title"), html.Div(id="total_costs")]), className="do-card"), md=4),
-    dbc.Col(dbc.Card(dbc.CardBody([html.H4("Material Cost Breakdown", className="do-title"), html.Div(id="material_costs")]), className="do-card"), md=4),
+    dbc.Col(
+        dbc.Card([dbc.CardBody([html.H4("Cost Summary", className="do-title"), html.Div(id="cost_summary")])], className="do-card"), md=4
+    ),
+    dbc.Col(
+        dbc.Card([dbc.CardBody([html.H4("Total Costs Breakdown", className="do-title"), html.Div(id="total_costs")])], className="do-card"), md=4
+    ),
+    dbc.Col(
+        dbc.Card([dbc.CardBody([html.H4("Material Cost Breakdown", className="do-title"), html.Div(id="material_costs")])], className="do-card"), md=4
+    ),
 ], className="g-4")
 
-gauge = dbc.Row([dbc.Col([html.Div(id="profit_status"), dcc.Graph(id="profit_gauge", config={"displayModeBar": False}, style={"height":"120px"})], md=12)])
+gauge = dbc.Row([
+    dbc.Col([
+        html.Div(id="profit_status"),
+        dcc.Graph(id="profit_gauge", config={"displayModeBar": False}, style={"height":"120px"})
+    ], md=12)
+])
 
 table_section = dbc.Row([
     dbc.Col([
@@ -170,48 +231,46 @@ table_section = dbc.Row([
                 {"name":"Price Each","id":"Price Each","type":"numeric","format":dash_table.FormatTemplate.money(2)},
                 {"name":"Line Total","id":"Line Total","type":"numeric","format":dash_table.FormatTemplate.money(2)},
             ],
-            data=[], editable=True, row_deletable=True,
+            data=[],
+            editable=True,
+            row_deletable=True,
             style_table={"overflowX":"auto"},
             style_cell={"fontFamily":"Inter, system-ui, -apple-system, Segoe UI, Roboto","fontSize":"15px","padding":"8px"},
             style_header={"fontWeight":"700","backgroundColor":"#2e6d33","color":"#fff"},
+            style_data_conditional=[]
         ),
         html.Div(id="totals_right", style={"textAlign":"right","marginTop":"10px","fontWeight":"700"})
     ], md=12)
 ])
 
-# ---- Material takeoff + actions ----
-materials_section = dbc.Row([
-    dbc.Col([
-        html.H4("📦 Material Takeoff", className="do-title"),
-        dash_table.DataTable(
-            id="materials_table",
-            columns=[
-                {"name":"Qty","id":"Qty","type":"numeric"},
-                {"name":"Item","id":"Item"},
-                {"name":"Unit","id":"Unit"},
-                {"name":"Notes","id":"Notes"},
-            ],
-            data=[], editable=False,
-            style_table={"overflowX":"auto"},
-            style_cell={"fontFamily":"Inter, system-ui, -apple-system, Segoe UI, Roboto","fontSize":"15px","padding":"8px"},
-            style_header={"fontWeight":"700","backgroundColor":"#2e6d33","color":"#fff"},
-        ),
-        html.Div(className="d-flex gap-2", children=[
-            dcc.Download(id="download_customer_csv"),
-            dcc.Download(id="download_materials_csv"),
-            dcc.Download(id="download_pdf"),
-            dbc.Button("⬇️ Download Customer CSV", id="btn_download_customer", color="success", className="mt-2"),
-            dbc.Button("⬇️ Download Materials CSV", id="btn_download_materials", color="secondary", className="mt-2"),
-            dbc.Button("📄 Download Quote PDF", id="btn_download_pdf", color="dark", className="mt-2"),
-            html.A(dbc.Button("✉️ Email Quote", id="btn_email", color="info", className="mt-2"),
-                   id="mailto_link", href="#", target="_blank", style={"textDecoration":"none"})
-        ])
-    ], md=12)
-])
+# -- helper to position the hamburger tab on/off canvas edge
+def _tab_style(is_open: bool):
+    return {
+        "position": "fixed",
+        "top": "96px",                   # vertical position
+        "left": f"{SIDEBAR_W - 8}px" if is_open else "0px",  # stick to sidebar edge or screen edge
+        "zIndex": 20000,
+        "boxShadow": "0 2px 8px rgba(0,0,0,.15)",
+        "borderTopRightRadius": "10px",
+        "borderBottomRightRadius": "10px",
+        "borderTopLeftRadius": "0px",
+        "borderBottomLeftRadius": "0px",
+        "padding": "8px 12px",
+    }
 
 # ---- Layout ----
 app.layout = dbc.Container([
     dcc.Store(id="lines_store", data=[]),
+
+    # Hamburger pinned to sidebar edge (position updated via callback)
+    html.Button(
+        "☰  Options",
+        id="open_sidebar_btn",
+        n_clicks=0,
+        className="btn btn-success",
+        style=_tab_style(True),  # initial: sidebar starts open
+    ),
+
     sidebar,
     html.Br(),
     html.Div(dbc.Alert(f"Pricebook source: {PRICEBOOK_SOURCE}", color="success")),
@@ -220,20 +279,19 @@ app.layout = dbc.Container([
     gauge,
     html.Hr(),
     table_section,
-    html.Br(), materials_section,
 
     # Sticky footer version badge
-html.Footer(
-    dbc.Badge(f"Double Oak Estimator – v{_read_version_fallback()}",
-              color="secondary", pill=True, class_name="shadow-sm"),
-    style={
-        "position": "fixed",
-        "bottom": "10px",
-        "right": "12px",
-        "zIndex": 9999,
-        "background": "transparent"
-    }
-)
+    html.Footer(
+        dbc.Badge(f"Double Oak Estimator – v{_read_version_fallback()}",
+                  color="secondary", pill=True, class_name="shadow-sm"),
+        style={
+            "position": "fixed",
+            "bottom": "10px",
+            "right": "12px",
+            "zIndex": 9999,
+            "background": "transparent"
+        }
+    )
 ], fluid=True)
 
 # ---- Callbacks ----
@@ -255,8 +313,6 @@ def toggle_category(cat):
     Output("profit_gauge","figure"),
     Output("preview_table","data"),
     Output("totals_right","children"),
-    Output("materials_table","data"),
-    Input("preview_table","data"),
     Input("fence_category","value"),
     Input("total_lf","value"),
     Input("waste_pct","value"),
@@ -272,13 +328,8 @@ def toggle_category(cat):
     Input("orange_price_lf","value"),
     Input("orange_removal","value"),
     Input("orange_remove_tax","value"),
-    Input("project_name","value"),
-    Input("company_name","value"),
-    Input("project_address","value"),
 )
-def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_price_lf, sf_caps, sf_cap_type, sf_removal, sf_remove_tax,
-            orange_duty, orange_spacing, orange_price_lf, orange_removal, orange_remove_tax,
-            project_name, company_name, project_address):
+def compute(cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_price_lf, sf_caps, sf_cap_type, sf_removal, sf_remove_tax, orange_duty, orange_spacing, orange_price_lf, orange_removal, orange_remove_tax):
 
     # inputs
     total_lf = int(total_lf or 0)
@@ -338,27 +389,27 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
     billing_days = math.ceil(project_days) if req_ft>0 else 0
     fuel = fuel_cost(billing_days, any_work=req_ft>0)
 
-    # removal pricing helper
-    def _calc_removal(qty_lf, sell_per_lf):
-        if qty_lf<=0: return 0.0,0.0
-        unit = sell_per_lf*0.40
-        unit = max(unit, 1.15) if qty_lf<800 else max(unit, 0.90)
-        total = unit*qty_lf
-        if total < 800: total=800.0; unit = total/qty_lf
-        return unit, total
+    unit_cost_lf = (mat_sub_all + tax_all + labor_cost + fuel)/req_ft if req_ft>0 else 0.0
 
-    # Customer-facing revenue uses quoted footage, not required footage with waste
-    customer_qty = int(total_lf or 0)
-    removal_unit_lf, _ = _calc_removal(customer_qty, final_price_per_lf) if removal_selected else (0.0, 0.0)
-    sell_total_main = final_price_per_lf*customer_qty if customer_qty>0 else 0.0
+    # removal pricing
+    def _calc_removal(req_ft, sell_per_lf):
+        if req_ft<=0: return 0.0,0.0
+        unit = sell_per_lf*0.40
+        unit = max(unit, 1.15) if req_ft<800 else max(unit, 0.90)
+        total = unit*req_ft
+        if total < 800: total=800.0; unit = total/req_ft
+        return unit, total
+    removal_unit_lf, removal_total = _calc_removal(req_ft, final_price_per_lf) if removal_selected else (0.0, 0.0)
+
+    sell_total_main = final_price_per_lf*req_ft if req_ft>0 else 0.0
     caps_revenue = caps_unit_cost*caps_qty if caps_qty>0 else 0.0
-    removal_revenue = (removal_unit_lf*customer_qty) if (removal_selected and customer_qty>0) else 0.0
+    removal_revenue = removal_total if removal_selected and req_ft>0 else 0.0
     customer_subtotal_display = sell_total_main + caps_revenue + removal_revenue
     customer_sales_tax = 0.0 if remove_tax_flag else customer_subtotal_display*SALES_TAX
     customer_total = customer_subtotal_display + customer_sales_tax
 
     internal_total_cost = mat_sub_all + tax_all + labor_cost + fuel
-    subtotal_for_margin = sell_total_main + caps_revenue  # keep margin on main scope/caps
+    subtotal_for_margin = sell_total_main + caps_revenue
     gross_profit = subtotal_for_margin - internal_total_cost
     profit_margin = (gross_profit/subtotal_for_margin) if subtotal_for_margin>0 else 0.0
 
@@ -377,6 +428,7 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
             html.Tr([html.Td("Total Material Cost"), html.Td(f"${mat_sub_all:,.2f}", style={"textAlign":"right"})]),
             html.Tr([html.Td("Labor Cost"), html.Td(f"${labor_cost:,.2f}", style={"textAlign":"right"})]),
             html.Tr([html.Td("Fuel"), html.Td(f"${fuel:,.2f}", style={"textAlign":"right"})]),
+            *([html.Tr([html.Td("Fence Removal"), html.Td(f"${removal_total:,.2f}", style={"textAlign":"right"})])] if removal_selected and req_ft>0 else []),
             html.Tr([html.Td("Final Price / LF (sell)"), html.Td(f"${final_price_per_lf:,.2f}", style={"textAlign":"right"})]),
         ])
     ], bordered=False, striped=True, hover=False, size="sm")
@@ -409,7 +461,8 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
     )
     fig.add_vline(x=target, line_dash="dash", line_color="#ff9d00")
 
-    # ---- Customer table (preserve user edits if table triggered the callback) ----
+    # ---- Customer table ----
+    customer_qty = int(total_lf or 0)
     lines = []
     if customer_qty>0:
         item_name = ("14 Gauge Silt Fence" if (cat=="Silt Fence" and (sf_gauge or "").startswith("14")) else
@@ -419,20 +472,11 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
     if caps_qty>0:
         lines.append({"_id":str(uuid.uuid4()), "Qty":int(caps_qty), "Item":"Safety Caps", "Unit":"EA",
                       "Price Each":float(caps_unit_cost), "Line Total":float(caps_unit_cost)*int(caps_qty)})
-    if removal_selected and customer_qty>0:
+    if removal_selected and req_ft>0:
         lines.append({"_id":str(uuid.uuid4()), "Qty":customer_qty, "Item":"Fence Removal", "Unit":"LF",
                       "Price Each":float(removal_unit_lf), "Line Total":float(removal_unit_lf)*customer_qty})
 
-    trig = (callback_context.triggered[0]["prop_id"] if callback_context.triggered else "")
-    trig_id = trig.split(".")[0] if trig else None
-    table_lines = preview_data if (trig_id == "preview_table" and isinstance(preview_data, list)) else lines
-
-    def _lt(row):
-        try:
-            return float(row.get("Line Total") or (float(row.get("Qty") or 0)*float(row.get("Price Each") or 0)))
-        except Exception:
-            return 0.0
-    subtotal = sum(_lt(r) for r in table_lines)
+    subtotal = sum(l["Line Total"] for l in lines)
     sales_tax = 0.0 if remove_tax_flag else subtotal*SALES_TAX
     grand_total = subtotal + sales_tax
     totals_html = html.Div([
@@ -441,152 +485,30 @@ def compute(preview_data, cat, total_lf, waste_pct, sf_gauge, sf_spacing, sf_pri
         html.Div(html.Strong(f"Grand Total: ${grand_total:,.2f}")),
     ])
 
-    # ---- Material takeoff table (posts / rolls / caps) ----
-    materials = []
-    if customer_qty>0:
-        materials.append({"Qty": int(rolls), "Item": "Fabric Roll (100 LF)", "Unit": "ROLL", "Notes": f"For ~{int(req_ft):,} LF incl. waste"})
-    if posts>0:
-        materials.append({"Qty": int(posts), "Item": "T-Post", "Unit": "EA", "Notes": f"Spacing {post_spacing} ft"})
-    if caps_qty>0:
-        materials.append({"Qty": int(caps_qty), "Item": "Safety Cap", "Unit": "EA", "Notes": ("OSHA" if cap_type=='OSHA' else "Plastic")})
+    return cs, tc, mc, badge, fig, lines, totals_html
 
-    return cs, tc, mc, badge, fig, table_lines, totals_html, materials
-
-# ---- CSV Downloads ----
+# -- Open Offcanvas when clicking the hamburger tab
 @app.callback(
-    Output("download_customer_csv","data"),
-    Input("btn_download_customer","n_clicks"),
-    State("preview_table","data"),
+    Output("sidebar", "is_open"),
+    Input("open_sidebar_btn", "n_clicks"),
+    State("sidebar", "is_open"),
     prevent_initial_call=True
 )
-def download_customer(n, table_rows):
-    df = pd.DataFrame(table_rows or [])
-    return send_data_frame(df.to_csv, "customer_printout.csv", index=False)
+def open_sidebar(n, is_open):
+    if not n:
+        return no_update
+    return True  # re-open if it was closed
 
+# -- Reposition the hamburger tab to "stick" to the sidebar edge
 @app.callback(
-    Output("download_materials_csv","data"),
-    Input("btn_download_materials","n_clicks"),
-    State("materials_table","data"),
-    prevent_initial_call=True
+    Output("open_sidebar_btn", "style"),
+    Input("sidebar", "is_open"),
 )
-def download_materials(n, mats):
-    df = pd.DataFrame(mats or [])
-    return send_data_frame(df.to_csv, "materials_takeoff.csv", index=False)
+def position_tab(is_open):
+    return _tab_style(bool(is_open))
 
-# ---- PDF Download ----
-def _build_quote_pdf(buf, proj, company, address, lines, mats, tax_rate):
-    styles = getSampleStyleSheet()
-    h1 = styles['Heading1']; h1.fontSize = 16
-    h2 = styles['Heading2']; h2.fontSize = 12
-    normal = styles['BodyText']
-    subtle = ParagraphStyle('subtle', parent=normal, textColor=colors.grey, fontSize=9)
-
-    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=36, rightMargin=36, topMargin=40, bottomMargin=36)
-    story = []
-
-    today = datetime.now().strftime("%b %d, %Y")
-    story.append(Paragraph("Double Oak Fencing — Quote", h1))
-    story.append(Paragraph(f"Date: {today}", subtle))
-    story.append(Spacer(1, 8))
-    story.append(Paragraph(f"<b>Project:</b> {proj or 'Fencing'}<br/><b>Customer:</b> {company or '-'}<br/><b>Address:</b> {address or '-'}", normal))
-    story.append(Spacer(1, 12))
-
-    # Customer Printout table
-    story.append(Paragraph("Customer Printout", h2))
-    df = pd.DataFrame(lines or [])
-    if not df.empty:
-        df_disp = df[['Qty','Item','Unit','Price Each','Line Total']].copy()
-        tbl = Table([list(df_disp.columns)] + df_disp.values.tolist(), hAlign='LEFT', colWidths=[50, 220, 50, 80, 80])
-        tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.Color(0.18,0.43,0.20)),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('ALIGN', (0,0), (-1,0), 'LEFT'),
-            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-            ('ALIGN', (-2,1), (-1,-1), 'RIGHT'),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.Color(0.96,0.99,0.96)])
-        ]))
-        story.append(tbl)
-    else:
-        story.append(Paragraph("No line items.", subtle))
-    story.append(Spacer(1, 10))
-
-    # Totals
-    def _lt(row):
-        try:
-            return float(row.get("Line Total") or (float(row.get("Qty") or 0)*float(row.get("Price Each") or 0)))
-        except Exception:
-            return 0.0
-    subtotal = sum(_lt(r) for r in (lines or []))
-    sales_tax = subtotal*tax_rate
-    grand_total = subtotal + sales_tax
-    story.append(Paragraph(f"<b>Subtotal:</b> ${subtotal:,.2f}", normal))
-    story.append(Paragraph(f"<b>Sales Tax ({tax_rate*100:.2f}%):</b> ${sales_tax:,.2f}", normal))
-    story.append(Paragraph(f"<b>Grand Total:</b> ${grand_total:,.2f}", normal))
-    story.append(Spacer(1, 14))
-
-    # Materials
-    story.append(Paragraph("Material Takeoff", h2))
-    md = pd.DataFrame(mats or [])
-    if not md.empty:
-        md_disp = md[['Qty','Item','Unit','Notes']].copy()
-        mt = Table([list(md_disp.columns)] + md_disp.values.tolist(), hAlign='LEFT', colWidths=[50, 220, 50, 160])
-        mt.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.Color(0.18,0.43,0.20)),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('ALIGN', (0,0), (-1,0), 'LEFT'),
-            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.Color(0.96,0.99,0.96)])
-        ]))
-        story.append(mt)
-    else:
-        story.append(Paragraph("No materials.", subtle))
-
-    story.append(Spacer(1, 20))
-    story.append(Paragraph(
-        f"Generated with Double Oak Fencing Estimator v{_read_version_fallback()}",
-        ParagraphStyle('footer', fontSize=8, textColor=colors.grey, alignment=2)  # right aligned
-    ))
-
-    doc.build(story)
-
-@app.callback(
-    Output("download_pdf","data"),
-    Input("btn_download_pdf","n_clicks"),
-    State("preview_table","data"),
-    State("materials_table","data"),
-    State("project_name","value"),
-    State("company_name","value"),
-    State("project_address","value"),
-    prevent_initial_call=True
-)
-def download_pdf(n, lines, mats, proj, company, address):
-    def _writer(f):
-        _build_quote_pdf(f, proj, company, address, lines or [], mats or [], SALES_TAX)
-    return send_bytes(_writer, f"quote_{(proj or 'fencing').replace(' ','_').lower()}.pdf")
-
-# ---- Mailto link (compose email with totals) ----
-@app.callback(
-    Output("mailto_link","href"),
-    Input("preview_table","data"),
-    Input("materials_table","data"),
-    Input("project_name","value"),
-    Input("company_name","value"),
-    Input("project_address","value"),
-)
-def mailto_href(lines, mats, project_name, company_name, project_address):
-    lines = lines or []; mats = mats or []
-    sub = f"Quote - {project_name or 'Fencing'}"
-    body = "Hello,%0D%0A%0D%0A"
-    body += f"Please find the quote below for {company_name or 'your project'} at {project_address or 'the jobsite'}.%0D%0A%0D%0A"
-    def row(r): return f"{r.get('Qty','')} {r.get('Unit','')} – {r.get('Item','')} @ ${r.get('Price Each','')}: ${r.get('Line Total','')}"
-    body += "Customer Printout:%0D%0A" + "%0D%0A".join(row(r) for r in lines) + "%0D%0A%0D%0A"
-    def mrow(r): return f"{r.get('Qty','')} {r.get('Unit','')} – {r.get('Item','')} ({r.get('Notes','')})"
-    body += "Materials Takeoff:%0D%0A" + "%0D%0A".join(mrow(r) for r in mats)
-    return f"mailto:?subject={_url.quote(sub)}&body={body}"
-
-server = app.server  # expose Flask server for gunicorn/Render
+# expose Flask server for gunicorn/hosted platforms
+server = app.server
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8050, debug=True)

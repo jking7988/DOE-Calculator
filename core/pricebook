@@ -1,0 +1,46 @@
+import os
+import pandas as pd
+
+_PRICEBOOK_PATH = os.environ.get("PRICEBOOK_PATH")
+_SHEETS = None
+
+def ensure_loaded():
+    """Load the Excel pricebook (once)."""
+    global _SHEETS
+    if _SHEETS is not None:
+        return
+    _SHEETS = {}
+    p = _PRICEBOOK_PATH
+    if p and os.path.exists(p):
+        try:
+            _SHEETS = pd.read_excel(p, sheet_name=None, engine="openpyxl")
+        except Exception:
+            _SHEETS = {}
+
+def get_source():
+    """Return the configured pricebook path (or a placeholder)."""
+    return _PRICEBOOK_PATH or "(defaults)"
+
+def get_price(sku: str, default: float):
+    """
+    Try to find a price for `sku` by scanning sheets/columns.
+    Falls back to `default` if not found.
+    """
+    ensure_loaded()
+    key = str(sku or "").strip().lower()
+    for _, df in (_SHEETS or {}).items():
+        try:
+            cols = [str(c).strip().lower() for c in df.columns]
+            df.columns = cols
+            price_cols = [c for c in cols if c in (
+                "price","unit price","cost","rate","per lf","$/lf","$ / lf","$ per lf")]
+            key_cols   = [c for c in cols if c in ("sku","key","code","item","name","description")]
+            for kc in key_cols:
+                series = df[kc].astype(str).str.strip().str.lower()
+                mask = series == key
+                if mask.any() and price_cols:
+                    val = df.loc[mask, price_cols[0]].iloc[0]
+                    return float(val)
+        except Exception:
+            continue
+    return default

@@ -1,0 +1,23 @@
+services:
+  app:
+    container_name: doubleoak
+    build:
+      context: .
+    environment:    
+      APP_VERSION: "0.3.0"
+      PRICEBOOK_PATH: "/app/pricebook.xlsx"
+    volumes:
+      - type: bind
+        source: "Z:\\Double Oak Erosion\\BIDS\\DOE BID Template w Calcs.xlsx"
+        target: /app/pricebook.xlsx
+        read_only: true
+      # If Z: sharing fails in Docker Desktop, use UNC instead:
+      # - type: bind
+      #   source: "//server3/doubleoak/Double Oak Erosion/BIDS/DOE BID Template w Calcs.xlsx"
+      #   target: /app/pricebook.xlsx
+      #   read_only: true
+    command: >
+      gunicorn --bind 0.0.0.0:8050 app:server
+    ports:
+      - "8050:8050"
+    restart: unless-stopped
