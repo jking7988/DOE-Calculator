@@ -1,16 +1,10 @@
 # docker-compose.dev.yml
-version: "3.9"
 services:
   app:
-    # override the prod command: use Dash/Flask reloader
-    command: python app.py
-    # mount your source into the container so changes are visible live
-    volumes:
-      - ./:/app
-      - "${HOST_PRICEBOOK_DIR}:/data:ro"
+    command: python -u app.py
     environment:
-      # your pricebook inside the container
-      PRICEBOOK_PATH: "/data/DOE BID Template w Calcs.xlsx"
-      FLASK_ENV: development
-      DASH_DEBUG: "1"      # not strictly required since app.py sets debug=True, but harmless
-    restart: "no"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - .:/app                         # live code (hot-reload)
+      - doe-calculator_bids:/app/shared:ro   # SMB share from base compose

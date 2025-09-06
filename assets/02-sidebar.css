@@ -1,0 +1,70 @@
+/* ==== LIGHT MODE (scoped) ==== */
+#theme_root.theme-light .offcanvas.theme-surface {
+  background: #4bb254 !important;           /* green sidebar */
+  border-right: 3px solid #2E7D32 !important;/* right edge bar */
+}
+
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-header {
+  background: #2E7D32 !important;            /* darker green header bar */
+  color: #ffffff !important;
+  border: 0 !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
+
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-title {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body {
+  text-align: center;                        /* change to 'left' if you prefer */
+}
+
+/* Labels (white on green for contrast) */
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body label,
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body .form-label,
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body .form-check-label {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+/* Inputs inherit alignment */
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body input[type="text"],
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body input[type="number"] {
+  text-align: inherit !important;
+}
+
+/* Dropdown text alignment */
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body .Select-placeholder,
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body .Select--single > .Select-control .Select-value,
+#theme_root.theme-light .offcanvas.theme-surface .offcanvas-body .Select-value-label {
+  text-align: inherit !important;
+  width: 100%;
+}
+
+/* ==== DARK MODE (scoped) ==== */
+#theme_root.theme-dark .offcanvas.theme-surface {
+  background: #132118 !important;            /* dark greenish surface */
+  border-right: 4px solid #22C55E !important;/* brighter edge bar */
+}
+
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-header {
+  background: #14532D !important;
+  color: #E6F4EA !important;
+  border: 0 !important;
+}
+
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-title {
+  color: #E6F4EA !important;
+}
+
+/* Labels (bright green on dark) */
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body label,
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body .form-label,
+#theme_root.theme-dark .offcanvas.theme-surface .offcanvas-body .form-check-label {
+  color: #22C55E !important;
+  font-weight: 800;
+}

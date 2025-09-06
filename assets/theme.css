@@ -70,7 +70,7 @@
 /* ===== DARK MODE OVERRIDES (scoped to #theme_root.theme-dark) ===== */
 
 #theme_root.theme-dark { 
-  background-color: #1f9461 !important; 
+  background-color: #125c3c !important; 
   color: #E6F4EA !important; 
   min-height: 100vh;
 }
@@ -78,7 +78,7 @@
 /* Cards & titles */
 #theme_root.theme-dark .do-card {
   background-color: #046b28 !important;
-  border-color: #8208a0 !important;
+  border-color: #8bb38b !important;
 }
 #theme_root.theme-dark .do-title {
   color: #E6F4EA !important;
@@ -137,3 +137,4 @@
 #theme_root.theme-dark .offcanvas.theme-surface {
   border-right: 4px solid #22C55E !important;
 }
+

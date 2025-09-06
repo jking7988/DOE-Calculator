@@ -2,22 +2,20 @@ services:
   app:
     container_name: doubleoak
     build:
-      context: .
-    environment:    
-      APP_VERSION: "0.3.0"
-      PRICEBOOK_PATH: "/app/pricebook.xlsx"
+      context: .               # <-- must exist and contain your Dockerfile
+      dockerfile: Dockerfile   # optional if it's named "Dockerfile"
+    environment:
+      APP_VERSION: "0.8.0"
+      PRICEBOOK_PATH: "/app/shared/Double Oak Erosion/BIDS/DOE BID Template w Calcs.xlsx"
+      PROPOSAL_TEMPLATE_PATH: "/app/shared/Double Oak Erosion/BIDS/proposal_template.xlsx"
     volumes:
-      - type: bind
-        source: "Z:\\Double Oak Erosion\\BIDS\\DOE BID Template w Calcs.xlsx"
-        target: /app/pricebook.xlsx
-        read_only: true
-      # If Z: sharing fails in Docker Desktop, use UNC instead:
-      # - type: bind
-      #   source: "//server3/doubleoak/Double Oak Erosion/BIDS/DOE BID Template w Calcs.xlsx"
-      #   target: /app/pricebook.xlsx
-      #   read_only: true
+      - doe-calculator_bids:/app/shared:ro
     command: >
       gunicorn --bind 0.0.0.0:8050 app:server
     ports:
       - "8050:8050"
     restart: unless-stopped
+
+volumes:
+  doe-calculator_bids:
+    external: true
